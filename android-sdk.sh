@@ -20,6 +20,14 @@ INSTALL_DIR="$PREFIX/opt"
 SDK_DIR="$INSTALL_DIR/android-sdk"
 NDK_DIR="$INSTALL_DIR/android-ndk"
 
+# Java Home - Correct Termux OpenJDK path
+JAVA_HOME_DIR="$PREFIX/lib/jvm/java-21-openjdk"
+
+# Shell configuration files
+BASHRC="$PREFIX/etc/bash.bashrc"
+ZSHRC="$HOME/.zshrc"
+FISH_CONFIG="$HOME/.config/fish/config.fish"
+
 # Dependencies
 DEPS=("openjdk-21" "gradle" "p7zip")
 
@@ -51,6 +59,11 @@ check_dependencies() {
             pkg install -y "$dep" || log_error "Failed to install $dep"
         fi
     done
+    
+    # Verify Java installation
+    if [ ! -d "$JAVA_HOME_DIR" ]; then
+        log_error "Java installation not found at $JAVA_HOME_DIR"
+    fi
 }
 
 download_and_extract() {
@@ -75,34 +88,24 @@ setup_environment() {
     export ANDROID_HOME="$SDK_DIR"
     export ANDROID_NDK_HOME="$NDK_DIR"
     export ANDROID_NDK_ROOT="$NDK_DIR"
-    export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_NDK_HOME:$PATH"
+    export JAVA_HOME="$JAVA_HOME_DIR"
+    export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_NDK_HOME:$PATH"
     
     # Detect shell and update configuration files
     detect_shell_and_update
 }
 
 detect_shell_and_update() {
-    local shell_name=$(basename "$SHELL")
-    local config_file=""
+    # Always update Termux bashrc
+    update_shell_config "$BASHRC" "bash"
     
-    case "$shell_name" in
-        "bash")
-            config_file="$PREFIX/etc/bash.bashrc"
-            ;;
-        "zsh")
-            config_file="$HOME/.zshrc"
-            ;;
-        "fish")
-            config_file="$HOME/.config/fish/config.fish"
-            ;;
-        *)
-            log_warning "Unknown shell: $shell_name. Please add environment variables manually."
-            return
-            ;;
-    esac
+    # Update other shells if they exist
+    if [ -f "$ZSHRC" ]; then
+        update_shell_config "$ZSHRC" "zsh"
+    fi
     
-    if [ -n "$config_file" ]; then
-        update_shell_config "$config_file" "$shell_name"
+    if [ -f "$FISH_CONFIG" ]; then
+        update_shell_config "$FISH_CONFIG" "fish"
     fi
 }
 
@@ -110,11 +113,8 @@ update_shell_config() {
     local config_file="$1"
     local shell_name="$2"
     
-    # Backup config file
-    cp "$config_file" "$config_file.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-    
-    # Remove existing Android environment variables
-    sed -i '/ANDROID_HOME\|ANDROID_NDK_HOME\|ANDROID_NDK_ROOT/d' "$config_file" 2>/dev/null || true
+    # Remove existing Android/Java environment variables
+    remove_existing_env "$config_file" "$shell_name"
     
     # Add new environment variables
     echo "" >> "$config_file"
@@ -124,6 +124,8 @@ update_shell_config() {
         echo "set -x ANDROID_HOME \"$SDK_DIR\"" >> "$config_file"
         echo "set -x ANDROID_NDK_HOME \"$NDK_DIR\"" >> "$config_file"
         echo "set -x ANDROID_NDK_ROOT \"$NDK_DIR\"" >> "$config_file"
+        echo "set -x JAVA_HOME \"$JAVA_HOME_DIR\"" >> "$config_file"
+        echo "set -x PATH \"\$JAVA_HOME/bin\" \$PATH" >> "$config_file"
         echo "set -x PATH \"\$ANDROID_HOME/cmdline-tools/latest/bin\" \$PATH" >> "$config_file"
         echo "set -x PATH \"\$ANDROID_HOME/platform-tools\" \$PATH" >> "$config_file"
         echo "set -x PATH \"\$ANDROID_NDK_HOME\" \$PATH" >> "$config_file"
@@ -131,34 +133,57 @@ update_shell_config() {
         echo "export ANDROID_HOME=\"$SDK_DIR\"" >> "$config_file"
         echo "export ANDROID_NDK_HOME=\"$NDK_DIR\"" >> "$config_file"
         echo "export ANDROID_NDK_ROOT=\"$NDK_DIR\"" >> "$config_file"
-        echo "export PATH=\"\$ANDROID_HOME/cmdline-tools/latest/bin:\$ANDROID_HOME/platform-tools:\$ANDROID_NDK_HOME:\$PATH\"" >> "$config_file"
+        echo "export JAVA_HOME=\"$JAVA_HOME_DIR\"" >> "$config_file"
+        echo "export PATH=\"\$JAVA_HOME/bin:\$ANDROID_HOME/cmdline-tools/latest/bin:\$ANDROID_HOME/platform-tools:\$ANDROID_NDK_HOME:\$PATH\"" >> "$config_file"
     fi
     
-    log_info "Updated $config_file with Android environment variables"
+    log_info "Updated $config_file with Android and Java environment variables"
+}
+
+remove_existing_env() {
+    local config_file="$1"
+    local shell_name="$2"
+    
+    if [ ! -f "$config_file" ]; then
+        return 0
+    fi
+    
+    # Create temporary file without Android/Java environment variables
+    grep -v -E "ANDROID_(HOME|NDK_HOME|NDK_ROOT)|JAVA_HOME|Android SDK and NDK paths|\$(ANDROID|JAVA)" "$config_file" > "${config_file}.tmp"
+    
+    # Replace original file with cleaned version
+    mv "${config_file}.tmp" "$config_file"
 }
 
 verify_installation() {
     log_info "Verifying installation..."
     
-    if [ -d "$SDK_DIR" ] && [ -d "$NDK_DIR" ]; then
-        log_success "Android SDK and NDK installed successfully!"
+    if [ -d "$SDK_DIR" ] && [ -d "$NDK_DIR" ] && [ -d "$JAVA_HOME_DIR" ]; then
+        log_success "Android SDK, NDK and Java installed successfully!"
         
         echo ""
         echo -e "${GREEN}Installation Summary:${NC}"
         echo "Android SDK: $SDK_DIR"
         echo "Android NDK: $NDK_DIR"
+        echo "Java Home: $JAVA_HOME_DIR"
         echo "ANDROID_HOME: $ANDROID_HOME"
         echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
+        echo "JAVA_HOME: $JAVA_HOME"
         echo ""
-        echo -e "${YELLOW}Please restart your shell or run:${NC}"
-        echo "source ~/.${SHELL##*/}rc"
+        echo -e "${YELLOW}Please restart Termux or run:${NC}"
+        echo "source $BASHRC"
         echo ""
         echo -e "${YELLOW}To verify, run:${NC}"
         echo "sdkmanager --list"
         echo "ndk-build --version"
+        echo "java -version"
+        echo "javac -version"
         
     else
         log_error "Installation verification failed"
+        echo "SDK exists: $( [ -d "$SDK_DIR" ] && echo "Yes" || echo "No" )"
+        echo "NDK exists: $( [ -d "$NDK_DIR" ] && echo "Yes" || echo "No" )"
+        echo "Java exists: $( [ -d "$JAVA_HOME_DIR" ] && echo "Yes" || echo "No" )"
     fi
 }
 
