@@ -149,15 +149,6 @@ main() {
         exit 0
     fi
     
-    # Confirm uninstallation
-    echo -e "${YELLOW}This will completely remove Android SDK and NDK from your system.${NC}"
-    read -p "Are you sure you want to continue? (y/N): " confirm
-    
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Uninstallation cancelled."
-        exit 0
-    fi
-    
     # Remove installation
     remove_installation
     
