@@ -19,20 +19,9 @@ Run this single command to install:
 curl -sL https://github.com/Keyaru-code/android-sdk-termux/raw/main/android-sdk.sh | bash
 ```
 
-## Manual Installation
-
-If you prefer to review the script first:
-
-```bash
-# Download the script
-curl -sLO https://github.com/Keyaru-code/android-sdk-termux/raw/main/android-sdk.sh
-
-# Review the script (recommended)
-cat android-sdk.sh
-
-# Make it executable and run
-chmod +x android-sdk.sh
-./android-sdk.sh
+## Uninstall 
+```
+curl -sL https://github.com/Keyaru-code/android-sdk-termux/raw/main/uninstall-android-sdk.sh | bash
 ```
 
 ## What Gets Installed
